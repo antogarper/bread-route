@@ -248,6 +248,14 @@ function openPanel(stop, idx) {
   document.getElementById("overlay").classList.add("open");
 }
 
+function openGoogleMaps() {
+  if (!currentStop) return;
+  // this URL opens Google Maps navigation from current location to the address
+  const dest = encodeURIComponent(currentStop.address);
+  const url  = "https://www.google.com/maps/dir/?api=1&destination=" + dest + "&travelmode=driving";
+  window.open(url, "_blank");
+}
+
 function closePanel() {
   document.getElementById("bread-panel").classList.remove("open");
   document.getElementById("overlay").classList.remove("open");
