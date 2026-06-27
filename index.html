@@ -22,50 +22,78 @@
       padding:4px 10px; border-radius:20px; white-space:nowrap;
     }
 
-    #info {
-      padding:12px 14px; background:#181c27;
+    #progress-bar-wrap {
+      background:#0f1117;
+      padding:8px 14px;
       border-bottom:1px solid #242938;
-      overflow-y:auto; max-height:45vh;
-    }
-    #map { width:100%; height:55vh; }
-
-    .leg {
       display:flex; align-items:center; gap:10px;
-      padding:10px 8px; border-bottom:1px solid #1e2336;
-      cursor:pointer; border-radius:6px; transition:background .15s;
     }
-    .leg:hover  { background:#1e2336; }
-    .leg:active { background:#242938; }
-    .leg:last-child { border-bottom:none; }
-    .dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
-    .leg-name  { font-size:13px; font-weight:600; color:#e8eaf0; }
-    .leg-stats { font-size:11px; color:#6b7280; margin-top:2px; }
-    .leg-tap   { font-size:10px; color:#3b82f6; margin-top:2px; }
+    #progress-bar-bg {
+      flex:1; height:6px; background:#242938; border-radius:3px; overflow:hidden;
+    }
+    #progress-bar-fill {
+      height:100%; background:#16a34a; border-radius:3px;
+      transition:width .4s ease;
+    }
+    #progress-label { font-size:11px; color:#6b7280; white-space:nowrap; }
+
+    #info { padding:10px 14px; background:#181c27; }
+
     .total-row {
       font-weight:700; color:#f5a623; font-size:13px;
       margin-bottom:10px; padding-bottom:8px;
       border-bottom:1px solid #242938;
     }
 
+    .leg {
+      display:flex; align-items:center; gap:10px;
+      padding:10px 8px; border-bottom:1px solid #1e2336;
+      cursor:pointer; border-radius:6px;
+      transition:background .15s, opacity .3s;
+      position:relative;
+    }
+    .leg:last-child { border-bottom:none; }
+    .leg:active { background:#242938; }
+    .leg.delivered {
+      opacity:0.4;
+    }
+    .leg.delivered .leg-name {
+      text-decoration:line-through;
+      color:#6b7280;
+    }
+    .dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; transition:background .3s; }
+    .leg-name  { font-size:13px; font-weight:600; color:#e8eaf0; transition:color .3s; }
+    .leg-stats { font-size:11px; color:#6b7280; margin-top:2px; }
+    .leg-tap   { font-size:10px; margin-top:2px; }
+    .delivered-badge {
+      display:none;
+      position:absolute; right:8px; top:50%; transform:translateY(-50%);
+      background:#16a34a; color:#fff; font-size:10px; font-weight:700;
+      padding:2px 8px; border-radius:10px;
+    }
+    .leg.delivered .delivered-badge { display:block; }
+    .leg.delivered .leg-tap { display:none; }
+
+    #map { width:100%; height:50vh; }
+
+    /* bread panel */
     #overlay {
       display:none; position:fixed;
       top:0; left:0; right:0; bottom:0;
-      background:rgba(0,0,0,0.4); z-index:9998;
+      background:rgba(0,0,0,0.5); z-index:9998;
     }
     #overlay.open { display:block; }
-
     #bread-panel {
-      display:none;
-      position:fixed; bottom:0; left:0; right:0;
+      display:none; position:fixed;
+      bottom:0; left:0; right:0;
       background:#181c27; border-top:2px solid #f5a623;
       border-radius:16px 16px 0 0;
-      padding:16px 16px 24px;
+      padding:16px 16px 28px;
       z-index:9999;
-      box-shadow:0 -4px 24px rgba(0,0,0,0.5);
-      max-height:60vh; overflow-y:auto;
+      box-shadow:0 -4px 24px rgba(0,0,0,0.6);
+      max-height:65vh; overflow-y:auto;
     }
     #bread-panel.open { display:block; }
-
     #panel-header {
       display:flex; justify-content:space-between;
       align-items:center; margin-bottom:6px;
@@ -94,6 +122,13 @@
       display:flex; justify-content:space-between;
       font-weight:700; font-size:13px;
     }
+    .mark-btn {
+      margin-top:14px; width:100%; padding:10px;
+      border:none; border-radius:8px;
+      font-size:13px; font-weight:700; cursor:pointer;
+    }
+    .mark-btn.deliver  { background:#16a34a; color:#fff; }
+    .mark-btn.undeliver { background:#242938; color:#9ca3af; }
   </style>
 </head>
 <body>
@@ -105,6 +140,11 @@
     <div id="header-sub">Optimized delivery · OpenStreetMap</div>
   </div>
   <div id="total-badge">Calculating…</div>
+</div>
+
+<div id="progress-bar-wrap">
+  <div id="progress-bar-bg"><div id="progress-bar-fill" style="width:0%"></div></div>
+  <div id="progress-label">0 / 0 delivered</div>
 </div>
 
 <div id="info">🗺️ Loading route…</div>
@@ -122,6 +162,7 @@
     <span>Total units</span>
     <span id="panel-total"></span>
   </div>
+  <button class="mark-btn deliver" id="mark-btn" onclick="toggleDelivered()"></button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -129,7 +170,48 @@
 const route  = [{"name": "Diar Al-Andalus", "address": "Pol. Ind. La L\u00e9ala, C. Concordia, 9, 29631 Benalm\u00e1dena, M\u00e1laga", "lat": 36.606469, "lng": -4.5299381, "breads": {}}, {"name": "Telepollo M\u00e1laga", "address": "Av. Imperio Argentina, 12, Carretera de C\u00e1diz, 29004 M\u00e1laga", "lat": 36.6822735, "lng": -4.4542488, "breads": {"Msemen Integral": 60, "Viena": 40}}, {"name": "Asador de pollos Nora", "address": "Av. de Carlos Haya, 63, Cruz de Humilladero, 29010 M\u00e1laga", "lat": 36.7221966, "lng": -4.4480683, "breads": {"Msemen Normal": 70, "Msemen Integral": 10}}, {"name": "DLuch Estebanez Calderon", "address": "C. Est\u00e9banez Calder\u00f3n, 16, Distrito Centro, 29007 M\u00e1laga", "lat": 36.7210565, "lng": -4.4308588, "breads": {"Tachnift Integral": 20, "Msemen Normal": 10}}, {"name": "El Delantal take away", "address": "C. Refino, 1, Centro, Distrito Centro, 29013 M\u00e1laga", "lat": 36.7257194, "lng": -4.4188876, "breads": {"Tachnift Normal": 60, "Tachnift Integral": 40}}, {"name": "Isla Market", "address": "C. Frailes, 36, Distrito Centro, 29012 M\u00e1laga", "lat": 36.7255869, "lng": -4.4185702, "breads": {"Harcha": 30, "Viena": 50}}];
 const COLORS = ["hsl(0, 80%, 55%)", "hsl(72, 80%, 55%)", "hsl(144, 80%, 55%)", "hsl(216, 80%, 55%)", "hsl(288, 80%, 55%)"];
 
-function openPanel(stop) {
+// track delivered stops and current open stop
+const delivered = {};
+let currentStop = null;
+
+function updateProgress() {
+  const total     = route.length - 1;
+  const done      = Object.values(delivered).filter(Boolean).length;
+  const pct       = total > 0 ? Math.round(done / total * 100) : 0;
+  document.getElementById("progress-bar-fill").style.width  = pct + "%";
+  document.getElementById("progress-label").textContent = done + " / " + total + " delivered";
+}
+
+function toggleDelivered() {
+  if (!currentStop) return;
+  const idx = currentStop._idx;
+  delivered[idx] = !delivered[idx];
+
+  // update leg row style
+  const legEl = document.getElementById("leg-" + idx);
+  if (legEl) {
+    legEl.classList.toggle("delivered", delivered[idx]);
+    const dot = legEl.querySelector(".dot");
+    if (dot) dot.style.background = delivered[idx] ? "#16a34a" : COLORS[idx];
+  }
+
+  // update button
+  const btn = document.getElementById("mark-btn");
+  if (delivered[idx]) {
+    btn.textContent = "✓ Delivered — tap to undo";
+    btn.className   = "mark-btn undeliver";
+  } else {
+    btn.textContent = "✓ Mark as delivered";
+    btn.className   = "mark-btn deliver";
+  }
+
+  updateProgress();
+}
+
+function openPanel(stop, idx) {
+  currentStop      = stop;
+  currentStop._idx = idx;
+
   document.getElementById("panel-title").textContent   = stop.name;
   document.getElementById("panel-address").textContent = stop.address || "";
 
@@ -150,6 +232,15 @@ function openPanel(stop) {
     document.getElementById("panel-total").textContent = total + " units";
   }
 
+  const btn = document.getElementById("mark-btn");
+  if (delivered[idx]) {
+    btn.textContent = "✓ Delivered — tap to undo";
+    btn.className   = "mark-btn undeliver";
+  } else {
+    btn.textContent = "✓ Mark as delivered";
+    btn.className   = "mark-btn deliver";
+  }
+
   document.getElementById("bread-panel").classList.add("open");
   document.getElementById("overlay").classList.add("open");
 }
@@ -157,8 +248,10 @@ function openPanel(stop) {
 function closePanel() {
   document.getElementById("bread-panel").classList.remove("open");
   document.getElementById("overlay").classList.remove("open");
+  currentStop = null;
 }
 
+// map
 const map = L.map("map").setView([route[0].lat, route[0].lng], 11);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
@@ -208,18 +301,18 @@ async function drawLegs() {
     const breads     = b.breads || {};
     const totalUnits = Object.values(breads).reduce((a, c) => a + c, 0);
     const hasBread   = totalUnits > 0;
-    const stopData   = JSON.stringify(b).replace(/'/g, "\'");
 
     legSummary.push(`
-      <div class="leg" onclick='openPanel(${JSON.stringify(b)})'>
+      <div class="leg" id="leg-${i}" onclick='openPanel(${JSON.stringify(b)}, ${i})'>
         <span class="dot" style="background:${color}"></span>
         <div style="flex:1;min-width:0">
           <div class="leg-name">→ ${b.name}</div>
           <div class="leg-stats">${km} km · ~${min} min${hasBread ? " · " + totalUnits + " units" : ""}</div>
           <div class="leg-tap" style="color:${hasBread ? "#3b82f6" : "#4b5563"}">
-            ${hasBread ? "👆 Tap to see bread order" : "No bread order"}
+            ${hasBread ? "👆 Tap to see order & mark delivered" : "👆 Tap to mark as delivered"}
           </div>
         </div>
+        <div class="delivered-badge">✓ Done</div>
       </div>`);
   }
 
@@ -232,6 +325,8 @@ async function drawLegs() {
   document.getElementById("info").innerHTML =
     `<div class="total-row">🍞 Total: ${totalDist.toFixed(1)} km · ${totalDur} min · ${route.length - 1} stops</div>` +
     legSummary.join("");
+
+  updateProgress();
 }
 
 drawLegs();
