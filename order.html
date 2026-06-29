@@ -1,0 +1,254 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Bread Order</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:Inter,system-ui,sans-serif; background:#0f1117; color:#e8eaf0; min-height:100vh; }
+
+    #header {
+      padding:16px 14px; background:#181c27;
+      border-bottom:1px solid #242938;
+      display:flex; align-items:center; gap:12px;
+    }
+    #header-title { font-size:16px; font-weight:700; }
+    #header-sub   { font-size:11px; color:#6b7280; margin-top:2px; }
+
+    #wrap { padding:20px 14px; max-width:480px; margin:0 auto; }
+
+    #customer-banner {
+      background:#181c27; border:1px solid #242938;
+      border-radius:10px; padding:12px 14px; margin-bottom:20px;
+      display:flex; align-items:center; gap:10px;
+    }
+    #customer-name  { font-size:15px; font-weight:700; }
+    #customer-label { font-size:11px; color:#6b7280; margin-top:2px; }
+
+    #not-found {
+      display:none; text-align:center; padding:40px 20px;
+    }
+    #not-found .emoji { font-size:40px; margin-bottom:12px; }
+    #not-found p { color:#6b7280; font-size:14px; }
+
+    h2 { font-size:14px; font-weight:700; color:#9ca3af;
+         text-transform:uppercase; letter-spacing:0.06em;
+         margin-bottom:12px; }
+
+    .bread-card {
+      background:#181c27; border:1px solid #242938;
+      border-radius:10px; padding:14px; margin-bottom:10px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+    .bread-card-name { font-size:14px; font-weight:600; }
+
+    .qty-control {
+      display:flex; align-items:center;
+      border:1px solid #242938; border-radius:8px; overflow:hidden;
+    }
+    .qty-btn {
+      width:36px; height:36px; border:none;
+      background:#242938; color:#e8eaf0;
+      font-size:18px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .qty-btn:active { background:#374151; }
+    .qty-val {
+      width:44px; height:36px; border:none;
+      background:#0f1117; color:#f5a623;
+      font-size:15px; font-weight:700;
+      text-align:center; outline:none;
+    }
+
+    #summary-wrap {
+      background:#181c27; border:1px solid #242938;
+      border-radius:10px; padding:14px; margin:20px 0;
+    }
+    #summary-wrap h2 { margin-bottom:10px; }
+    .summary-row {
+      display:flex; justify-content:space-between;
+      padding:5px 0; font-size:13px;
+      border-bottom:1px solid #1e2336;
+    }
+    .summary-row:last-child { border-bottom:none; }
+    .summary-qty { font-weight:700; color:#f5a623; }
+    #summary-total {
+      margin-top:10px; padding-top:10px;
+      border-top:1px solid #242938;
+      display:flex; justify-content:space-between;
+      font-weight:700; font-size:14px;
+    }
+
+    #submit-btn {
+      width:100%; padding:15px;
+      background:#f5a623; color:#0f1117;
+      border:none; border-radius:10px;
+      font-size:16px; font-weight:700; cursor:pointer;
+      margin-bottom:12px;
+    }
+    #submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+    #submit-msg {
+      padding:12px 14px; border-radius:8px;
+      font-size:13px; text-align:center; display:none;
+    }
+    #submit-msg.ok  { background:#14532d; color:#86efac; }
+    #submit-msg.err { background:#7f1d1d; color:#fca5a5; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <span style="font-size:26px">🍞</span>
+  <div>
+    <div id="header-title">Bread Order</div>
+    <div id="header-sub">Place your order for tomorrow's delivery</div>
+  </div>
+</div>
+
+<div id="wrap">
+  <div id="customer-banner">
+    <span style="font-size:22px">🏪</span>
+    <div>
+      <div id="customer-name">Loading…</div>
+      <div id="customer-label">Your bread order</div>
+    </div>
+  </div>
+
+  <div id="not-found">
+    <div class="emoji">🤷</div>
+    <p>Customer not found.<br>Please use the link provided by your supplier.</p>
+  </div>
+
+  <div id="form-wrap">
+    <h2>Select quantities</h2>
+    <div id="bread-cards"></div>
+
+    <div id="summary-wrap">
+      <h2>Order summary</h2>
+      <div id="summary-rows">
+        <div style="color:#6b7280;font-size:13px">No items selected yet.</div>
+      </div>
+      <div id="summary-total" style="display:none">
+        <span>Total units</span>
+        <span id="total-units">0</span>
+      </div>
+    </div>
+
+    <button id="submit-btn" onclick="submitOrder()">📤 Send order</button>
+    <div id="submit-msg"></div>
+  </div>
+</div>
+
+<script>
+const BREAD_TYPES    = ["Tachnift Normal", "Tachnift Integral", "Msemen Normal", "Msemen Integral", "Msemen Melwi", "Harcha", "Viena"];
+const CUSTOMER_NAMES = ["El Delantal take away", "Asador de pollos Nora", "Isla Market", "Telepollo M\u00e1laga", "DLuch Estebanez Calderon"];
+const SCRIPT_URL     = "https://script.google.com/macros/s/AKfycbzrWNzzt3wrkVObzBuTG9x172FoVX9lb9fUIjflJj5vtOlJtFIyMkpjbp0HbuzrUkzj/exec";
+
+// read customer from URL
+const params       = new URLSearchParams(window.location.search);
+const customerName = params.get("customer");
+
+if (!customerName || !CUSTOMER_NAMES.includes(customerName)) {
+  document.getElementById("customer-banner").style.display = "none";
+  document.getElementById("form-wrap").style.display       = "none";
+  document.getElementById("not-found").style.display       = "block";
+} else {
+  document.getElementById("customer-name").textContent = customerName;
+  buildForm();
+}
+
+function buildForm() {
+  const container = document.getElementById("bread-cards");
+  BREAD_TYPES.forEach(b => {
+    const id = "bread-" + b.replace(/ /g, "-");
+    container.innerHTML += `
+      <div class="bread-card">
+        <div class="bread-card-name">🍞 ${b}</div>
+        <div class="qty-control">
+          <button class="qty-btn" onclick="changeQty('${id}', -1)">−</button>
+          <input  class="qty-val" type="number" id="${id}" value="0" min="0" oninput="updateSummary()"/>
+          <button class="qty-btn" onclick="changeQty('${id}', +1)">+</button>
+        </div>
+      </div>`;
+  });
+  updateSummary();
+}
+
+function changeQty(id, delta) {
+  const input = document.getElementById(id);
+  input.value = Math.max(0, (parseInt(input.value) || 0) + delta);
+  updateSummary();
+}
+
+function updateSummary() {
+  const rows = [];
+  let total  = 0;
+  BREAD_TYPES.forEach(b => {
+    const val = parseInt(document.getElementById("bread-" + b.replace(/ /g,"-")).value) || 0;
+    if (val > 0) { rows.push({ name: b, qty: val }); total += val; }
+  });
+
+  const summaryRows  = document.getElementById("summary-rows");
+  const summaryTotal = document.getElementById("summary-total");
+
+  if (rows.length === 0) {
+    summaryRows.innerHTML      = '<div style="color:#6b7280;font-size:13px">No items selected yet.</div>';
+    summaryTotal.style.display = "none";
+  } else {
+    summaryRows.innerHTML = rows.map(r =>
+      `<div class="summary-row"><span>${r.name}</span><span class="summary-qty">${r.qty}</span></div>`
+    ).join("");
+    document.getElementById("total-units").textContent = total + " units";
+    summaryTotal.style.display = "flex";
+  }
+}
+
+async function submitOrder() {
+  const breads = {};
+  BREAD_TYPES.forEach(b => {
+    const val = parseInt(document.getElementById("bread-" + b.replace(/ /g,"-")).value) || 0;
+    if (val > 0) breads[b] = val;
+  });
+
+  if (Object.keys(breads).length === 0) {
+    showMsg("Please add at least one bread type.", "err");
+    return;
+  }
+
+  const btn = document.getElementById("submit-btn");
+  btn.disabled    = true;
+  btn.textContent = "Sending…";
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method:  "POST",
+      mode:    "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ name: customerName, breads }),
+    });
+    showMsg("✅ Order sent! We will prepare it for tomorrow's delivery.", "ok");
+    BREAD_TYPES.forEach(b => {
+      document.getElementById("bread-" + b.replace(/ /g,"-")).value = 0;
+    });
+    updateSummary();
+  } catch(err) {
+    showMsg("❌ Could not send order. Please try again.", "err");
+  }
+
+  btn.disabled    = false;
+  btn.textContent = "📤 Send order";
+}
+
+function showMsg(text, type) {
+  const el         = document.getElementById("submit-msg");
+  el.textContent   = text;
+  el.className     = type;
+  el.style.display = "block";
+  setTimeout(() => el.style.display = "none", 6000);
+}
+</script>
+</body>
+</html>
